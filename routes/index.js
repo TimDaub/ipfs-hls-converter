@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const ipfsAPI = require('ipfs-api');
 const fs = require('fs');
 const PouchDB = require('pouchdb-node');
@@ -14,40 +14,64 @@ var ipfsHashes = function(req, res, next) {
                 status: "processing"
             })
 
-            const random = randomString(10)
-            exec(`docker run -v $PWD:/tmp jrottenberg/ffmpeg:3.4-scratch -stats -i http://gateway.ipfs.io/ipfs/${req.params.ipfsHash} -c:v libx264 -pix_fmt yuv420p10 -f mp4 /tmp/${req.params.ipfsHash+random}.mp4`,
-                (error, stdout, stderr) => {
-                    if (error) {
-                        console.error(`exec error: ${error}`)
-                        db.put({
-                            _id: req.params.ipfsHash,
-                            log: stderr
-                        })
-                        return;
-                    }
-                    console.log(`stdout: ${stdout}`)
-                    console.log(`stderr: ${stderr}`)
-
-                    const ipfs = ipfsAPI('ipfs.infura.io', '5001', {protocol: 'https'})
-                    let testFile = fs.readFileSync(`${req.params.ipfsHash + random}.mp4`);
-                    let testBuffer = new Buffer(testFile);
-                    ipfs.files.add(testBuffer, function (err, file) {
-                        if (err) {
-                            console.log(err);
-                        }
-                        console.log(file)
-                        db.get(req.params.ipfsHash)
-                            .then(doc => {
-                                db.put({
-                                    _id: req.params.ipfsHash,
-                                    _rev: doc._rev,
-                                    file: file[0],
-                                    status: "finished"
-                                })
-                            }).catch(console.log)
-                    })
-            })
             res.send(200, "File is downloaded and processed, check back later")
+            const random = randomString(10)
+            console.log(process.argv[1])
+            const child = spawn('docker', [
+                'run',
+                '-v',
+                process.env.PWD+':/tmp', 
+                'jrottenberg/ffmpeg:3.4-scratch',
+                '-i',
+                'http://gateway.ipfs.io/ipfs/'+req.params.ipfsHash,
+                '-t',
+                '5',
+                '-c:v',
+                'libx264',
+                '-pix_fmt',
+                'yuv420p10',
+                '-f',
+                'mp4',
+                '/tmp/'+req.params.ipfsHash+random+'.mp4'])
+
+            child.stdout.on("data", data => {
+                var textChunk = data.toString('utf8');
+                console.log(textChunk)
+            })
+            child.stderr.on("data", data => {
+                var textChunk = data.toString('utf8');
+                console.log(textChunk)
+            })
+
+            child.on('error', console.log)
+
+            child.on("exit", err => {
+                if (err === 1) {
+                    return
+                }
+                console.log("Uploading to infura")
+                const ipfs = ipfsAPI('ipfs.infura.io', '5001', {protocol: 'https'})
+                let testFile = fs.readFileSync(`${req.params.ipfsHash + random}.mp4`);
+                let testBuffer = new Buffer(testFile);
+                ipfs.files.add(testBuffer, function (err, file) {
+                    if (err) {
+                        console.log(err);
+                    }
+                    console.log(req.params)
+                    db.get(req.params.ipfsHash)
+                        .then(doc => {
+                            console.log("Updating database")
+                            db.put({
+                                _id: req.params.ipfsHash,
+                                _rev: doc._rev,
+                                file: file[0],
+                                status: "finished"
+                            })
+                            console.log("deleting file")
+                            fs.unlinkSync(`${req.params.ipfsHash + random}.mp4`);
+                        }).catch(console.log)
+                })
+            })
         })
 
 }

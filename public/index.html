@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>title</title>
+    </head>
+    <body>
+        This website converts any IPFS hosted file to .mp4 and reuploads
+        it to IPFS.
+        <br>
+        <input class="value" type="text" placeholder="IPFS hash" />
+        <button class="btn" type="Submit">Submit</button>
+
+        <p class="response"></p>
+    <script>
+        document.querySelector(".btn").addEventListener("click", start)
+        function start() {
+            var value = document.querySelector(".value").value
+            var Http = new XMLHttpRequest();
+            var url='../hashes/'+value;
+            Http.open("GET", url);
+            Http.send();
+            Http.onreadystatechange=(e)=>{
+                var response = document.querySelector(".response")
+                response.innerHTML = ''
+                var text = document.createTextNode(Http.responseText)
+                response.appendChild(text)
+            }
+
+
+
+        }
+
+    </script>
+    </body>
+</html>
