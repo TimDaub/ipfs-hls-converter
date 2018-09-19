@@ -1,0 +1,5 @@
+docker run -v $PWD:/tmp jrottenberg/ffmpeg:3.4-scratch \
+        -stats \
+                -i http://gateway.ipfs.io/ipfs/QmbDWxvxGTBS76amK45RZ8HuEPvbrLU1Rkdn6QEZ7KFcRE \
+                        -c:v libx264 -pix_fmt yuv420p10 \
+                                -t 5 -f mp4 /tmp/test.mp4
