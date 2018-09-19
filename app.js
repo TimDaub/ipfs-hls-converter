@@ -18,6 +18,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/', (req, res) => {
+    res.send('Hello world\n');
+});
 app.use('/hashes/:ipfsHash', indexRouter.ipfsHashes);
-
 module.exports = app;
