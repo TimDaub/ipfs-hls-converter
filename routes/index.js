@@ -4,11 +4,20 @@ const ipfsAPI = require('ipfs-api');
 const fs = require('fs');
 const PouchDB = require('pouchdb-node');
 
+let errors = {};
 var ipfsHashes = function(req, res, next) {
   var db = new PouchDB('mydb');
   db.get(req.params.ipfsHash)
     .then(doc => {
-      res.send(200, doc);
+      if (doc.status === 'error' && errors[req.params.ipfsHash]) {
+        errors[req.params.ipfsHash] = undefined;
+        throw new Error('Continue with encoding');
+      } else if (doc.status === 'error' && !errors[req.params.ipfsHash]) {
+        errors[req.params.ipfsHash] = true;
+        res.send(200, doc);
+      } else {
+        res.send(200, doc);
+      }
     })
     .catch(err => {
       db.put({
@@ -18,16 +27,16 @@ var ipfsHashes = function(req, res, next) {
 
       res.send(200, 'File is downloaded and processed, check back later');
       const random = randomString(10);
-      console.log(process.argv[1]);
+
       const child = spawn('docker', [
         'run',
         '-v',
         process.env.PWD + ':/tmp',
         'jrottenberg/ffmpeg:3.4-scratch',
         '-i',
-        'http://ipfs.infura.io/ipfs/' + req.params.ipfsHash,
-        '-t',
-        '5',
+        'https://ipfs.infura.io/ipfs/' + req.params.ipfsHash,
+        //'-t',
+        //'5',
         '-c:v',
         'libx264',
         '-pix_fmt',
@@ -40,15 +49,29 @@ var ipfsHashes = function(req, res, next) {
       child.stdout.on('data', data => {
         var textChunk = data.toString('utf8');
         console.log(textChunk);
+        db.get(req.params.ipfsHash).then(doc => {
+          db.put({
+            _id: req.params.ipfsHash,
+            _rev: doc._rev,
+            log: doc.log + textChunk,
+          });
+        });
       });
       child.stderr.on('data', data => {
         var textChunk = data.toString('utf8');
-        console.log(textChunk);
+        console.log('error' + textChunk);
+
+        db.get(req.params.ipfsHash).then(doc => {
+          db.put({
+            _id: req.params.ipfsHash,
+            _rev: doc._rev,
+            log: doc.log + textChunk,
+          });
+        });
       });
 
-      child.on('exit', err, stdout => {
+      child.on('exit', err => {
         if (err === 1) {
-          console.log(stdout);
           db.get(req.params.ipfsHash).then(doc => {
             db.put({
               _id: req.params.ipfsHash,
@@ -58,15 +81,16 @@ var ipfsHashes = function(req, res, next) {
           });
           return;
         }
+
         console.log('Uploading to infura');
         const ipfs = ipfsAPI('ipfs.infura.io', '5001', {protocol: 'https'});
         let testFile = fs.readFileSync(`${req.params.ipfsHash + random}.mp4`);
         let testBuffer = new Buffer(testFile);
+
         ipfs.files.add(testBuffer, function(err, file) {
           if (err) {
             console.log(err);
           }
-          console.log(req.params);
           db.get(req.params.ipfsHash)
             .then(doc => {
               console.log('Updating database');
