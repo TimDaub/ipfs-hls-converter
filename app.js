@@ -1,3 +1,4 @@
+// @format
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
@@ -14,12 +15,12 @@ app.set('view engine', 'jade');
 
 app.use(logger('dev'));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
 app.use('/static', express.static('public'));
 
 app.get('/', (req, res) => {
-    res.send('Hello world\n');
+  res.send('Hello world\n');
 });
 app.use('/hashes/:ipfsHash', indexRouter.ipfsHashes);
 module.exports = app;
