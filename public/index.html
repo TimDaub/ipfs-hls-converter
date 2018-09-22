@@ -2,35 +2,19 @@
 <html>
     <head>
         <meta charset="UTF-8">
-        <title>title</title>
+        <title>IPFS MP4 Converter</title>
+        <link rel="stylesheet" href="styles.css">
     </head>
     <body>
-        This website converts any IPFS hosted file to .mp4 and reuploads
-        it to IPFS.
-        <br>
-        <input class="value" type="text" placeholder="IPFS hash" />
-        <button class="btn" type="Submit">Submit</button>
+        <div class="root"></div>
 
-        <p class="response"></p>
-    <script>
-        document.querySelector(".btn").addEventListener("click", start)
-        function start() {
-            var value = document.querySelector(".value").value
-            var Http = new XMLHttpRequest();
-            var url='../hashes/'+value;
-            Http.open("GET", url);
-            Http.send();
-            Http.onreadystatechange=(e)=>{
-                var response = document.querySelector(".response")
-                response.innerHTML = ''
-                var text = document.createTextNode(Http.responseText)
-                response.appendChild(text)
-            }
-
-
-
-        }
-
-    </script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.4.2/react.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.4.2/react-dom.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.21.1/babel.min.js"></script>
+        <script type="text/babel" src="index.js"></script>
+        <!--
+        <script crossorigin src="https://unpkg.com/react@16/umd/react.production.min.js"></script>
+        <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.production.min.js"></script>
+        -->
     </body>
 </html>

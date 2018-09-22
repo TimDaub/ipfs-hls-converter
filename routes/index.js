@@ -25,7 +25,9 @@ var ipfsHashes = function(req, res, next) {
         status: 'processing',
       });
 
-      res.send(200, 'File is downloaded and processed, check back later');
+      res.send(200, {
+        status: 'File is downloaded and processed, check back later',
+      });
       const random = randomString(10);
 
       const child = spawn('docker', [
@@ -105,8 +107,20 @@ var ipfsHashes = function(req, res, next) {
 
         ipfs.files.add(testBuffer, function(err, file) {
           if (err) {
-            console.log(err);
-          }
+              db.get(req.params.ipfsHash)
+                .then(doc => {
+                  console.log('Updating database');
+                  db.put({
+                    _id: req.params.ipfsHash,
+                    _rev: doc._rev,
+                    file: file[0],
+                    status: 'error',
+                    progress: doc.progress,
+                    duration: doc.duration,
+                    percentage: doc.percentage,
+                  });
+                })
+              }
           db.get(req.params.ipfsHash)
             .then(doc => {
               console.log('Updating database');
