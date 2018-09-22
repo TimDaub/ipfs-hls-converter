@@ -49,25 +49,36 @@ var ipfsHashes = function(req, res, next) {
       child.stdout.on('data', data => {
         var textChunk = data.toString('utf8');
         console.log(textChunk);
-        db.get(req.params.ipfsHash).then(doc => {
-          db.put({
-            _id: req.params.ipfsHash,
-            _rev: doc._rev,
-            log: doc.log + textChunk,
-          });
-        });
       });
+
       child.stderr.on('data', data => {
         var textChunk = data.toString('utf8');
-        console.log('error' + textChunk);
+        console.log(textChunk);
 
-        db.get(req.params.ipfsHash).then(doc => {
-          db.put({
-            _id: req.params.ipfsHash,
-            _rev: doc._rev,
-            log: doc.log + textChunk,
+        const durationStart = textChunk.search('Duration: ');
+        if (durationStart !== -1) {
+          db.get(req.params.ipfsHash).then(doc => {
+            db.put({
+              _id: req.params.ipfsHash,
+              _rev: doc._rev,
+              duration: textChunk.slice(durationStart + 10, durationStart + 21),
+              status: 'processing',
+            });
           });
-        });
+        }
+
+        const timeStart = textChunk.search('time=');
+        if (timeStart !== -1) {
+          db.get(req.params.ipfsHash).then(doc => {
+            db.put({
+              _id: req.params.ipfsHash,
+              _rev: doc._rev,
+              progress: textChunk.slice(timeStart + 5, timeStart + 16),
+              duration: doc.duration,
+              status: 'processing',
+            });
+          });
+        }
       });
 
       child.on('exit', err => {
