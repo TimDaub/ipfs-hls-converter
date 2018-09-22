@@ -69,13 +69,15 @@ var ipfsHashes = function(req, res, next) {
 
         const timeStart = textChunk.search('time=');
         if (timeStart !== -1) {
+          const progress = textChunk.slice(timeStart + 5, timeStart + 16);
           db.get(req.params.ipfsHash).then(doc => {
             db.put({
               _id: req.params.ipfsHash,
               _rev: doc._rev,
-              progress: textChunk.slice(timeStart + 5, timeStart + 16),
+              progress: progress,
               duration: doc.duration,
               status: 'processing',
+              percentage: getPercentage(doc.duration, progress),
             });
           });
         }
@@ -88,6 +90,9 @@ var ipfsHashes = function(req, res, next) {
               _id: req.params.ipfsHash,
               _rev: doc._rev,
               status: 'error',
+              duration: doc.duration,
+              percentage: doc.percentage,
+              progress: doc.progress,
             });
           });
           return;
@@ -110,6 +115,9 @@ var ipfsHashes = function(req, res, next) {
                 _rev: doc._rev,
                 file: file[0],
                 status: 'finished',
+                progress: doc.progress,
+                duration: doc.duration,
+                percentage: doc.percentage,
               });
               console.log('deleting file');
               fs.unlinkSync(`${req.params.ipfsHash + random}.mp4`);
@@ -119,6 +127,30 @@ var ipfsHashes = function(req, res, next) {
       });
     });
 };
+
+function getPercentage(duration, progress) {
+  const durationSplit = duration.split(':');
+  const durationHours = durationSplit[0];
+  const durationMinutes = durationSplit[1];
+  const durationSeconds = durationSplit[2];
+
+  const durationTotalSeconds =
+    parseInt(durationHours) * 3600 +
+    parseInt(durationMinutes) * 60 +
+    parseInt(durationSeconds);
+
+  const progressSplit = progress.split(':');
+  const progressHours = progressSplit[0];
+  const progressMinutes = progressSplit[1];
+  const progressSeconds = progressSplit[2];
+
+  const progressTotalSeconds =
+    parseInt(progressHours) * 3600 +
+    parseInt(progressMinutes) * 60 +
+    parseInt(progressSeconds);
+
+  return (progressTotalSeconds / durationTotalSeconds) * 100;
+}
 
 function randomString(len, charSet) {
   charSet =
