@@ -1,8 +1,11 @@
 // @format
 const {spawn} = require('child_process');
 const ipfsAPI = require('ipfs-api');
+const https = require('https');
 const fs = require('fs');
 const PouchDB = require('pouchdb-node');
+const mkdirp = require('mkdirp');
+const rimraf = require('rimraf');
 
 let errors = {};
 var ipfsHashes = function(req, res, next) {
@@ -14,9 +17,9 @@ var ipfsHashes = function(req, res, next) {
         throw new Error('Continue with encoding');
       } else if (doc.status === 'error' && !errors[req.params.ipfsHash]) {
         errors[req.params.ipfsHash] = true;
-        res.send(200, doc);
+        res.json(200, doc);
       } else {
-        res.send(200, doc);
+        res.json(200, doc);
       }
     })
     .catch(err => {
@@ -25,119 +28,162 @@ var ipfsHashes = function(req, res, next) {
         status: 'processing',
       });
 
-      res.send(200, {
+      res.json(200, {
         status: 'File is downloaded and processed, check back later',
       });
       const random = randomString(10);
 
-      const child = spawn('docker', [
-        'run',
-        '-v',
-        process.env.PWD + ':/tmp',
-        'jrottenberg/ffmpeg:3.4-scratch',
-        '-i',
-        'https://ipfs.infura.io/ipfs/' + req.params.ipfsHash,
-        //'-t',
-        //'5',
-        '-c:v',
-        'libx264',
-        '-pix_fmt',
-        'yuv420p10',
-        '-f',
-        'mp4',
-        '/tmp/' + req.params.ipfsHash + random + '.mp4',
-      ]);
+      mkdirp(req.params.ipfsHash + random, function(err) {
+        download(
+          'https://ipfs.infura.io/ipfs/' + req.params.ipfsHash,
+          process.env.PWD,
+          req.params.ipfsHash,
+          error => {
+            if (error) {
+              db.get(req.params.ipfsHash).then(doc => {
+                db.put({
+                  _id: req.params.ipfsHash,
+                  _rev: doc._rev,
+                  status: 'error',
+                  error: 'Download failed',
+                  duration: doc.duration,
+                  percentage: doc.percentage,
+                  progress: doc.progress,
+                });
+              });
+              return;
+            }
+            // https://github.com/ipfs/js-ipfs/tree/master/examples/browser-video-streaming
+            const options = [
+              'run',
+              '-v',
+              process.env.PWD + ':/tmp/ffmpeg',
+              'opencoconut/ffmpeg',
+              '-i',
+              req.params.ipfsHash,
+              '-profile:v',
+              'baseline',
+              '-level',
+              '3.0',
+              '-start_number',
+              '0',
+              '-hls_time',
+              '5',
+              //'-t',
+              //'2',
+              '-hls_list_size',
+              '0',
+              '-f',
+              'hls',
+              './' + req.params.ipfsHash + random + '/out.m3u8',
+            ];
+            console.log(options);
+            const child = spawn('docker', options);
 
-      child.stdout.on('data', data => {
-        var textChunk = data.toString('utf8');
-        console.log(textChunk);
-      });
-
-      child.stderr.on('data', data => {
-        var textChunk = data.toString('utf8');
-        console.log(textChunk);
-
-        const durationStart = textChunk.search('Duration: ');
-        if (durationStart !== -1) {
-          db.get(req.params.ipfsHash).then(doc => {
-            db.put({
-              _id: req.params.ipfsHash,
-              _rev: doc._rev,
-              duration: textChunk.slice(durationStart + 10, durationStart + 21),
-              status: 'processing',
+            child.stdout.on('data', data => {
+              var textChunk = data.toString('utf8');
+              console.log(textChunk);
             });
-          });
-        }
 
-        const timeStart = textChunk.search('time=');
-        if (timeStart !== -1) {
-          const progress = textChunk.slice(timeStart + 5, timeStart + 16);
-          db.get(req.params.ipfsHash).then(doc => {
-            db.put({
-              _id: req.params.ipfsHash,
-              _rev: doc._rev,
-              progress: progress,
-              duration: doc.duration,
-              status: 'processing',
-              percentage: getPercentage(doc.duration, progress),
-            });
-          });
-        }
-      });
+            child.stderr.on('data', data => {
+              var textChunk = data.toString('utf8');
+              console.log(textChunk);
 
-      child.on('exit', err => {
-        if (err === 1) {
-          db.get(req.params.ipfsHash).then(doc => {
-            db.put({
-              _id: req.params.ipfsHash,
-              _rev: doc._rev,
-              status: 'error',
-              duration: doc.duration,
-              percentage: doc.percentage,
-              progress: doc.progress,
-            });
-          });
-          return;
-        }
-
-        console.log('Uploading to infura');
-        const ipfs = ipfsAPI('ipfs.infura.io', '5001', {protocol: 'https'});
-        let testFile = fs.readFileSync(`${req.params.ipfsHash + random}.mp4`);
-        let testBuffer = new Buffer(testFile);
-
-        ipfs.files.add(testBuffer, function(err, file) {
-          if (err) {
-              db.get(req.params.ipfsHash)
-                .then(doc => {
-                  console.log('Updating database');
+              const durationStart = textChunk.search('Duration: ');
+              if (durationStart !== -1) {
+                db.get(req.params.ipfsHash).then(doc => {
                   db.put({
                     _id: req.params.ipfsHash,
                     _rev: doc._rev,
-                    file: file[0],
+                    duration: textChunk.slice(
+                      durationStart + 10,
+                      durationStart + 21,
+                    ),
+                    status: 'processing',
+                  });
+                });
+              }
+
+              const timeStart = textChunk.search('time=');
+              if (timeStart !== -1) {
+                const progress = textChunk.slice(timeStart + 5, timeStart + 16);
+                db.get(req.params.ipfsHash).then(doc => {
+                  db.put({
+                    _id: req.params.ipfsHash,
+                    _rev: doc._rev,
+                    progress: progress,
+                    duration: doc.duration,
+                    status: 'processing',
+                    percentage: getPercentage(doc.duration, progress),
+                  });
+                });
+              }
+            });
+
+            child.on('exit', err => {
+              if (err === 1) {
+                db.get(req.params.ipfsHash).then(doc => {
+                  db.put({
+                    _id: req.params.ipfsHash,
+                    _rev: doc._rev,
                     status: 'error',
-                    progress: doc.progress,
+                    error: 'Processing failed',
                     duration: doc.duration,
                     percentage: doc.percentage,
+                    progress: doc.progress,
                   });
-                })
+                });
+                return;
               }
-          db.get(req.params.ipfsHash)
-            .then(doc => {
-              console.log('Updating database');
-              db.put({
-                _id: req.params.ipfsHash,
-                _rev: doc._rev,
-                file: file[0],
-                status: 'finished',
-                progress: doc.progress,
-                duration: doc.duration,
-                percentage: doc.percentage,
+
+              console.log('Uploading to local ipfs node');
+              const ipfs = ipfsAPI(process.env.IPFS_HOST, '5001', {
+                protocol: 'http',
               });
-              console.log('deleting file');
-              fs.unlinkSync(`${req.params.ipfsHash + random}.mp4`);
-            })
-            .catch(console.log);
-        });
+
+              ipfs.util.addFromFs(
+                './' + req.params.ipfsHash + random + '/',
+                {recursive: true},
+                function(err, result) {
+                  console.log(result, err);
+                  if (err) {
+                    db.get(req.params.ipfsHash).then(doc => {
+                      console.log('Updating database');
+                      db.put({
+                        _id: req.params.ipfsHash,
+                        _rev: doc._rev,
+                        file: result,
+                        status: 'error',
+                        progress: doc.progress,
+                        duration: doc.duration,
+                        percentage: doc.percentage,
+                      });
+                    });
+                  }
+                  db.get(req.params.ipfsHash)
+                    .then(doc => {
+                      console.log('Updating database');
+                      db.put({
+                        _id: req.params.ipfsHash,
+                        _rev: doc._rev,
+                        file: result,
+                        status: 'finished',
+                        progress: doc.progress,
+                        duration: doc.duration,
+                        percentage: doc.percentage,
+                      });
+                      rimraf(`${req.params.ipfsHash + random}`, function() {
+                        console.log('deleting folder');
+                      });
+                      console.log('deleting file');
+                      fs.unlinkSync(`${req.params.ipfsHash}`);
+                    })
+                    .catch(console.log);
+                },
+              );
+            });
+          },
+        );
       });
     });
 };
@@ -165,6 +211,22 @@ function getPercentage(duration, progress) {
 
   return (progressTotalSeconds / durationTotalSeconds) * 100;
 }
+
+const download = function(url, dest, filename, cb) {
+  console.log('Starting download');
+  const file = fs.createWriteStream(dest + '/' + filename);
+  const request = https.get(url, function(response) {
+    const {statusCode} = response;
+    response.pipe(file);
+    file.on('finish', function() {
+      if (statusCode === 504) {
+        cb(new Error('Download failed'));
+      } else {
+        file.close(cb);
+      }
+    });
+  });
+};
 
 function randomString(len, charSet) {
   charSet =
