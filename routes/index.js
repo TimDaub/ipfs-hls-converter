@@ -73,7 +73,7 @@ var ipfsHashes = function(req, res, next) {
               '-2',
               '-f',
               'hls',
-              './' + req.params.ipfsHash + random + '/out.m3u8',
+              './' + req.params.ipfsHash + random + '/master.m3u8',
             ];
             console.log(options);
             const child = spawn('ffmpeg', options);
@@ -150,7 +150,7 @@ var ipfsHashes = function(req, res, next) {
                       db.put({
                         _id: req.params.ipfsHash,
                         _rev: doc._rev,
-                        file: result,
+                        files: result,
                         status: 'error',
                         progress: doc.progress,
                         duration: doc.duration,
@@ -164,7 +164,7 @@ var ipfsHashes = function(req, res, next) {
                       db.put({
                         _id: req.params.ipfsHash,
                         _rev: doc._rev,
-                        file: result,
+                        files: result,
                         status: 'finished',
                         progress: doc.progress,
                         duration: doc.duration,

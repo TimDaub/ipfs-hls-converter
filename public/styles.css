@@ -1,5 +1,20 @@
+body {
+    font-family: 'Inconsolata', monospace;
+}
+
+h1 {
+    font-weight: bold;
+}
+
+.wrapper {
+    text-align: center;
+}
 .root {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+iframe {
+    display: inline-block;
 }

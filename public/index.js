@@ -6,27 +6,32 @@ class App extends React.Component {
   };
   handleClick = () => {
     setInterval(() => {
-        var Http = new XMLHttpRequest();
-        var url = '../hashes/' + document.querySelector('.value').value;
-        Http.open('GET', url);
-        Http.send();
-        Http.onreadystatechange = e => {
-          const data = JSON.parse(Http.responseText);
-          this.setState(data);
-        };
-    }, 1000)
-  }
+      var Http = new XMLHttpRequest();
+      var url = '../hashes/' + document.querySelector('.value').value;
+      Http.open('GET', url);
+      Http.send();
+      Http.onreadystatechange = e => {
+        const data = JSON.parse(Http.responseText);
+        this.setState(data);
+      };
+    }, 1000);
+  };
 
-  request() {
-  }
+  request() {}
 
   render() {
+    const {files} = this.state;
     return (
       <div>
-        <h1>IPFS MP4 Converter</h1>
+        <h1>IPFS HLS Converter</h1>
         <p>
-          This website converts any IPFS-hosted file to .mp4 and reuploads it to
-          IPFS.
+          This website converts any IPFS-hosted file to an{' '}
+          <a 
+            target="_blank" 
+            href="https://github.com/ipfs/js-ipfs/tree/master/examples/browser-video-streaming">
+            HLS file
+          </a>{' '}
+          and reuploads it to IPFS.
         </p>
         <input type="text" className="value" placeholder="IPFS hash" />
         <button onClick={this.handleClick} type="submit">
@@ -39,12 +44,12 @@ class App extends React.Component {
           <a
             target="_blank"
             href={
-              this.state.file &&
-              'https://ipfs.infura.io/ipfs/' + this.state.file.hash
+              files && 'https://ipfs.infura.io/ipfs/' + files[files.length - 1].hash
             }>
             File on Infura
           </a>
         </p>
+        <p>To embedd a file, use the following code</p>
       </div>
     );
   }
