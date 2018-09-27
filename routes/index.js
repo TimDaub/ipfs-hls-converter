@@ -55,10 +55,6 @@ var ipfsHashes = function(req, res, next) {
             }
             // https://github.com/ipfs/js-ipfs/tree/master/examples/browser-video-streaming
             const options = [
-              'run',
-              '-v',
-              process.env.PWD + ':/tmp/ffmpeg',
-              'opencoconut/ffmpeg',
               '-i',
               req.params.ipfsHash,
               '-profile:v',
@@ -73,12 +69,14 @@ var ipfsHashes = function(req, res, next) {
               //'2',
               '-hls_list_size',
               '0',
+              '-strict',
+              '-2',
               '-f',
               'hls',
               './' + req.params.ipfsHash + random + '/out.m3u8',
             ];
             console.log(options);
-            const child = spawn('docker', options);
+            const child = spawn('ffmpeg', options);
 
             child.stdout.on('data', data => {
               var textChunk = data.toString('utf8');
