@@ -4,11 +4,18 @@ body {
 
 h1 {
     font-weight: bold;
+    font-size: 2.5em;
+}
+
+h2 {
+    margin-top: 1.5em;
+    text-decoration: underline;
 }
 
 .wrapper {
     text-align: center;
 }
+
 .root {
     display: flex;
     align-items: center;
@@ -17,4 +24,38 @@ h1 {
 
 iframe {
     display: inline-block;
+}
+
+.app {
+    width: 50%;
+}
+
+.app input {
+    width: 87%;
+    height: 3em;
+    font-size:.72em;
+}
+
+*:focus {
+    outline: none;
+}
+
+.btn {
+    border: 1px solid black;
+    padding-top: .55em;
+    padding-bottom: .65em;
+    padding-left: 1%;
+    padding-right: 1%;
+    cursor: pointer;
+    background-color: white;
+}
+
+.btn:hover {
+    filter: invert(100%);
+}
+
+.app .btn {
+    width: 10%;
+    margin-left: 1%;
+    height: 3em;
 }
