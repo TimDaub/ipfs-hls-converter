@@ -7,6 +7,8 @@ RUN apt-get update -yq \
 WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install nodemon -g
+RUN npm install webpack -g
+RUN npm install webpack-cli -g
 RUN npm install
 COPY . .
 EXPOSE 3000

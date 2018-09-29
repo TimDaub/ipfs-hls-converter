@@ -8,6 +8,11 @@
 var app = require('../app');
 var debug = require('debug')('ipfs-convert:server');
 var http = require('http');
+var webpackHotMiddleware = require('webpack-middleware-hmr/server.js');
+let webpack = require('webpack');
+let webpackMiddleware = require('webpack-dev-middleware');
+let config = require('../webpack.config.js');
+let compiler = webpack(config);
 
 /**
  * Get port from environment and store in Express.
@@ -29,6 +34,8 @@ var server = http.createServer(app);
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
+
+webpackHotMiddleware(server, compiler)
 
 /**
  * Normalize a port into a number, string, or false.

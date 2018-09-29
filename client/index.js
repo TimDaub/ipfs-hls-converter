@@ -1,4 +1,7 @@
 // @format
+import React from 'react';
+import ReactDOM from 'react-dom';
+import css from './styles.css';
 
 class App extends React.Component {
   state = {
@@ -17,8 +20,6 @@ class App extends React.Component {
     }, 1000);
   };
 
-  request() {}
-
   render() {
     const {files} = this.state;
     return (
@@ -26,8 +27,8 @@ class App extends React.Component {
         <h1>IPFS HLS Converter</h1>
         <p>
           This website converts any IPFS-hosted file to an{' '}
-          <a 
-            target="_blank" 
+          <a
+            target="_blank"
             href="https://github.com/ipfs/js-ipfs/tree/master/examples/browser-video-streaming">
             HLS file
           </a>{' '}
@@ -44,7 +45,8 @@ class App extends React.Component {
           <a
             target="_blank"
             href={
-              files && 'https://ipfs.infura.io/ipfs/' + files[files.length - 1].hash
+              files &&
+              'https://ipfs.infura.io/ipfs/' + files[files.length - 1].hash
             }>
             File on Infura
           </a>

@@ -18,7 +18,22 @@ app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
-app.use('/static', express.static('public'));
+
+const isDeveloping = process.env.NODE_ENV !== 'production';
+
+if (isDeveloping) {
+  let webpack = require('webpack');
+  let webpackMiddleware = require('webpack-dev-middleware');
+  let config = require('./webpack.config.js');
+  let compiler = webpack(config);
+  // serve the content using webpack
+  app.use(webpackMiddleware(compiler, {
+    publicPath: '/', 
+  }));
+} else {
+  // serve the content using static directory
+  app.use(express.static(staticPath));
+}
 
 app.get('/', (req, res) => {
   res.send('Hello world\n');
