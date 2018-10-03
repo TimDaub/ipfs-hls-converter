@@ -1,4 +1,8 @@
-body {
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+body, input {
     font-family: 'Inconsolata', monospace;
 }
 
@@ -26,36 +30,37 @@ iframe {
     display: inline-block;
 }
 
-.app {
-    width: 50%;
+@media screen and (min-width: 900px) {
+    .app {
+        width: 50%;
+    }
 }
 
 .app input {
     width: 87%;
-    height: 3em;
-    font-size:.72em;
 }
 
-*:focus {
-    outline: none;
-}
-
-.btn {
+.app input, .app .btn {
     border: 1px solid black;
-    padding-top: .55em;
-    padding-bottom: .65em;
-    padding-left: 1%;
-    padding-right: 1%;
-    cursor: pointer;
-    background-color: white;
-}
-
-.btn:hover {
-    filter: invert(100%);
+    font-size: 14px;
+    padding: 10px 2px;
 }
 
 .app .btn {
-    width: 10%;
+    cursor: pointer;
+    background-color: white;
     margin-left: 1%;
-    height: 3em;
+    width: 12%;
+    display: block;
+    float: right;
+    text-align: center;
+}
+
+.app .btn:hover {
+    filter: invert(100%);
+}
+
+
+*:focus {
+    outline: none;
 }
