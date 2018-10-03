@@ -130,6 +130,7 @@ var ipfsHashes = function(req, res, next) {
                     percentage: doc.percentage,
                     progress: doc.progress,
                   });
+                  deleteFile(req.params.ipfsHash, random);
                 });
                 return;
               }
@@ -156,6 +157,7 @@ var ipfsHashes = function(req, res, next) {
                         duration: doc.duration,
                         percentage: doc.percentage,
                       });
+                      deleteFile(req.params.ipfsHash, random);
                     });
                   }
                   db.get(req.params.ipfsHash)
@@ -170,11 +172,7 @@ var ipfsHashes = function(req, res, next) {
                         duration: doc.duration,
                         percentage: doc.percentage,
                       });
-                      rimraf(`${req.params.ipfsHash + random}`, function() {
-                        console.log('deleting folder');
-                      });
-                      console.log('deleting file');
-                      fs.unlinkSync(`${req.params.ipfsHash}`);
+                      deleteFile(req.params.ipfsHash, random);
                     })
                     .catch(console.log);
                 },
@@ -185,6 +183,14 @@ var ipfsHashes = function(req, res, next) {
       });
     });
 };
+
+function deleteFile(name, random) {
+  rimraf(name + random, function() {
+    console.log('deleting folder');
+  });
+  console.log('deleting file');
+  fs.unlinkSync(name);
+}
 
 function getPercentage(duration, progress) {
   const durationSplit = duration.split(':');
