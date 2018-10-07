@@ -6,11 +6,165 @@ const fs = require('fs');
 const PouchDB = require('pouchdb-node');
 const rimraf = require('rimraf');
 const util = require('util');
+const Bull = require('bull');
 let mkdirp = require('mkdirp');
 
 mkdirp = util.promisify(mkdirp);
 
 let errors = {};
+const queue = new Bull('video processing', 'redis://redis:6379');
+
+queue.process(async (job, done) => {
+  var db = new PouchDB('mydb');
+  const {ipfsHash, random} = job.data;
+
+  try {
+    await download(
+      'https://ipfs.infura.io/ipfs/' + ipfsHash,
+      process.env.PWD,
+      ipfsHash,
+    );
+  } catch (err) {
+    const doc = await db.get(ipfsHash);
+    db.put({
+      _id: ipfsHash,
+      _rev: doc._rev,
+      status: 'error',
+      error: 'Download failed',
+      duration: doc.duration,
+      percentage: doc.percentage,
+      progress: doc.progress,
+    });
+    return;
+  }
+  let duration;
+  try {
+    duration = await getDuration(ipfsHash);
+  } catch (err) {
+    const doc = await db.get(ipfsHash);
+    db.put({
+      _id: ipfsHash,
+      _rev: doc._rev,
+      status: 'error',
+      error: err.message,
+    });
+  }
+  const doc = await db.get(ipfsHash);
+  db.put({
+    _id: ipfsHash,
+    _rev: doc._rev,
+    duration: duration,
+    status: 'processing',
+  });
+
+  // https://github.com/ipfs/js-ipfs/tree/master/examples/browser-video-streaming
+  const options = [
+    '-i',
+    ipfsHash,
+    '-profile:v',
+    'baseline',
+    '-level',
+    '3.0',
+    '-start_number',
+    '0',
+    '-hls_time',
+    '5',
+    //'-t',
+    //'2',
+    '-hls_list_size',
+    '0',
+    '-strict',
+    '-2',
+    '-f',
+    'hls',
+    './' + ipfsHash + random + '/master.m3u8',
+  ];
+  console.log(options);
+  const child = spawn('ffmpeg', options);
+
+  child.stdout.on('data', data => {
+    var textChunk = data.toString('utf8');
+    console.log(textChunk);
+  });
+
+  child.stderr.on('data', async data => {
+    var textChunk = data.toString('utf8');
+    console.log(textChunk);
+
+    const timeStart = textChunk.search('time=');
+    if (timeStart !== -1) {
+      const progress = textChunk.slice(timeStart + 5, timeStart + 16);
+      const doc = await db.get(ipfsHash);
+      db.put({
+        _id: ipfsHash,
+        _rev: doc._rev,
+        progress: progress,
+        duration: doc.duration,
+        status: 'processing',
+        percentage: getPercentage(doc.duration, progress),
+      });
+      job.process(getPercentage(doc.duration, progress));
+    }
+  });
+
+  child.on('exit', async err => {
+    if (err === 1) {
+      const doc = await db.get(ipfsHash);
+      db.put({
+        _id: ipfsHash,
+        _rev: doc._rev,
+        status: 'error',
+        error: 'Processing failed',
+        duration: doc.duration,
+        percentage: doc.percentage,
+        progress: doc.progress,
+      });
+      deleteFile(ipfsHash, random);
+      return;
+    }
+
+    console.log('Uploading to local ipfs node');
+    const ipfs = ipfsAPI(process.env.IPFS_HOST, '5001', {
+      protocol: 'http',
+    });
+
+    const addFromFs = util.promisify(ipfs.util.addFromFs.bind(ipfs));
+    let result;
+    try {
+      result = await addFromFs('./' + ipfsHash + random + '/', {
+        recursive: true,
+      });
+    } catch (err) {
+      const doc = await db.get(ipfsHash);
+      console.log('Updating database');
+      db.put({
+        _id: ipfsHash,
+        _rev: doc._rev,
+        files: result,
+        status: 'error',
+        progress: doc.progress,
+        duration: doc.duration,
+        percentage: doc.percentage,
+      });
+      deleteFile(ipfsHash, random);
+    }
+
+    const doc = await db.get(ipfsHash);
+    console.log('Updating database');
+    db.put({
+      _id: ipfsHash,
+      _rev: doc._rev,
+      files: result,
+      status: 'finished',
+      progress: doc.progress,
+      duration: doc.duration,
+      percentage: doc.percentage,
+    });
+    deleteFile(ipfsHash, random);
+    done();
+  });
+});
+
 var ipfsHashes = async function(req, res, next) {
   var db = new PouchDB('mydb');
   try {
@@ -50,149 +204,18 @@ var ipfsHashes = async function(req, res, next) {
       });
     }
 
-    try {
-      await download(
-        'https://ipfs.infura.io/ipfs/' + req.params.ipfsHash,
-        process.env.PWD,
-        req.params.ipfsHash,
-      );
-    } catch (err) {
-      const doc = await db.get(req.params.ipfsHash);
-      db.put({
-        _id: req.params.ipfsHash,
-        _rev: doc._rev,
-        status: 'error',
-        error: 'Download failed',
-        duration: doc.duration,
-        percentage: doc.percentage,
-        progress: doc.progress,
-      });
-      return;
-    }
-
-    let duration;
-    try {
-      duration = await getDuration(req.params.ipfsHash);
-    } catch (err) {
-      const doc = await db.get(req.params.ipfsHash);
-      db.put({
-        _id: req.params.ipfsHash,
-        _rev: doc._rev,
-        status: 'error',
-        error: err.message,
-      });
-    }
-    const doc = await db.get(req.params.ipfsHash);
-    db.put({
-      _id: req.params.ipfsHash,
-      _rev: doc._rev,
-      duration: duration,
-      status: 'processing',
+    queue.add({
+      ipfsHash: req.params.ipfsHash,
+      random: random,
     });
-
-    // https://github.com/ipfs/js-ipfs/tree/master/examples/browser-video-streaming
-    const options = [
-      '-i',
-      req.params.ipfsHash,
-      '-profile:v',
-      'baseline',
-      '-level',
-      '3.0',
-      '-start_number',
-      '0',
-      '-hls_time',
-      '5',
-      //'-t',
-      //'2',
-      '-hls_list_size',
-      '0',
-      '-strict',
-      '-2',
-      '-f',
-      'hls',
-      './' + req.params.ipfsHash + random + '/master.m3u8',
-    ];
-    console.log(options);
-    const child = spawn('ffmpeg', options);
-
-    child.stdout.on('data', data => {
-      var textChunk = data.toString('utf8');
-      console.log(textChunk);
+    queue.on('completed', job => {
+      console.log(`Job with id ${job.id} has been completed`);
     });
-
-    child.stderr.on('data', async data => {
-      var textChunk = data.toString('utf8');
-      console.log(textChunk);
-
-      const timeStart = textChunk.search('time=');
-      if (timeStart !== -1) {
-        const progress = textChunk.slice(timeStart + 5, timeStart + 16);
-        const doc = await db.get(req.params.ipfsHash);
-        db.put({
-          _id: req.params.ipfsHash,
-          _rev: doc._rev,
-          progress: progress,
-          duration: doc.duration,
-          status: 'processing',
-          percentage: getPercentage(doc.duration, progress),
-        });
-      }
+    queue.on('error', function(error) {
+      console.log(error);
     });
-
-    child.on('exit', async err => {
-      if (err === 1) {
-        const doc = await db.get(req.params.ipfsHash);
-        db.put({
-          _id: req.params.ipfsHash,
-          _rev: doc._rev,
-          status: 'error',
-          error: 'Processing failed',
-          duration: doc.duration,
-          percentage: doc.percentage,
-          progress: doc.progress,
-        });
-        deleteFile(req.params.ipfsHash, random);
-        return;
-      }
-
-      console.log('Uploading to local ipfs node');
-      const ipfs = ipfsAPI(process.env.IPFS_HOST, '5001', {
-        protocol: 'http',
-      });
-
-      const addFromFs = util.promisify(ipfs.util.addFromFs.bind(ipfs));
-      let result;
-      try {
-        result = await addFromFs('./' + req.params.ipfsHash + random + '/', {
-          recursive: true,
-        });
-      } catch (err) {
-        const doc = await db.get(req.params.ipfsHash);
-        console.log('Updating database');
-        db.put({
-          _id: req.params.ipfsHash,
-          _rev: doc._rev,
-          files: result,
-          status: 'error',
-          progress: doc.progress,
-          duration: doc.duration,
-          percentage: doc.percentage,
-        });
-        deleteFile(req.params.ipfsHash, random);
-      }
-
-      const doc = await db.get(req.params.ipfsHash);
-      console.log('Updating database');
-      db.put({
-        _id: req.params.ipfsHash,
-        _rev: doc._rev,
-        files: result,
-        status: 'finished',
-        progress: doc.progress,
-        duration: doc.duration,
-        percentage: doc.percentage,
-      });
-      deleteFile(req.params.ipfsHash, random);
+    queue.on('failed', function(job, err) {
+      console.log(err);
     });
   }
 };

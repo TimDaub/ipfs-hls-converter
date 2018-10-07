@@ -6,6 +6,7 @@
     "start": "concurrently 'nodemon --ignore client/ --ignore public/ ./bin/www' 'webpack --config webpack.config.js'"
   },
   "dependencies": {
+    "bull": "^3.4.8",
     "concurrently": "^4.0.1",
     "cookie-parser": "~1.4.3",
     "debug": "~2.6.9",
