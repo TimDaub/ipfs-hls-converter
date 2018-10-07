@@ -6,7 +6,7 @@ services:
             - "80:3000"
         volumes:
             - .:/usr/src/app
-        depends_on:
+        links:
             - redis
     ipfs:
         build: ipfs/
@@ -23,9 +23,11 @@ services:
     redis:
         image: 'bitnami/redis:latest'
         restart: "always"
+        command: redis-server /usr/local/etc/redis/redis.conf
         environment:
             - ALLOW_EMPTY_PASSWORD=yes
         ports:
             - '6379:6379'
         volumes:
             - /tmp/redis:/bitnami/redis/data
+            - ./redis/redis.conf:/usr/local/etc/redis/redis.conf

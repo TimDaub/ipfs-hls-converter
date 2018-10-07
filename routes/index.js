@@ -48,6 +48,7 @@ queue.process(async (job, done) => {
       status: 'error',
       error: err.message,
     });
+    deleteFile(ipfsHash, random);
   }
   const doc = await db.get(ipfsHash);
   db.put({
@@ -114,7 +115,7 @@ queue.process(async (job, done) => {
         _id: ipfsHash,
         _rev: doc._rev,
         status: 'error',
-        error: 'Processing failed',
+        error: 'FFMPEG failed',
         duration: doc.duration,
         percentage: doc.percentage,
         progress: doc.progress,
@@ -181,7 +182,7 @@ var ipfsHashes = async function(req, res, next) {
   } catch (err) {
     db.put({
       _id: req.params.ipfsHash,
-      status: 'processing',
+      status: 'downloading',
     });
 
     res.json(200, {
@@ -202,6 +203,7 @@ var ipfsHashes = async function(req, res, next) {
         percentage: doc.percentage,
         progress: doc.progress,
       });
+      deleteFile(req.params.ipfsHash, random);
     }
 
     queue.add({

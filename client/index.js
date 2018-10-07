@@ -8,9 +8,12 @@ import {Line} from 'rc-progress';
 class App extends React.Component {
   state = {
     status: '',
+    intervals: [],
   };
   handleClick = () => {
-    setInterval(() => {
+    const {intervals} = this.state;
+
+    const intervalId = setInterval(() => {
       var Http = new XMLHttpRequest();
       var url = '../hashes/' + document.querySelector('.value').value;
       Http.open('GET', url);
@@ -20,7 +23,21 @@ class App extends React.Component {
         this.setState(data);
       };
     }, 1000);
+
+    intervals.push(intervalId);
+    this.setState({intervals, status: ''});
   };
+
+  componentDidUpdate(prevProps, prevState) {
+    const {status, intervals} = this.state;
+    if (
+      (status === 'error' && intervals.length !== 0) ||
+      status === 'finished'
+    ) {
+      intervals.forEach(clearInterval);
+      this.setState({intervals: []});
+    }
+  }
 
   progressBar() {
     const {percentage} = this.state;
@@ -41,8 +58,8 @@ class App extends React.Component {
     }
   }
 
-  file() {
-    const {files} = this.state;
+  status() {
+    const {files, status, error} = this.state;
     if (files) {
       const hash = files[files.length - 1].hash;
       return (
@@ -52,6 +69,12 @@ class App extends React.Component {
           </a>
         </p>
       );
+    }
+    if (status === 'error' && error) {
+      return <p>Processing threw an error: {error}</p>;
+    }
+    if (status === 'downloading') {
+      return <p>Downloading the file and piping it to FFMPEG</p>;
     }
   }
 
@@ -78,7 +101,7 @@ class App extends React.Component {
           Convert
         </span>
         {this.progressBar()}
-        {this.file()}
+        {this.status()}
         <h2>API (free)</h2>
         <h3>HTTP GET /hashes/:IPFSHash/</h3>
         <p>
