@@ -32,7 +32,7 @@ class App extends React.Component {
     const {status, intervals} = this.state;
     if (
       (status === 'error' && intervals.length !== 0) ||
-      status === 'finished'
+      (status === 'finished' && intervals.length !== 0)
     ) {
       intervals.forEach(clearInterval);
       this.setState({intervals: []});

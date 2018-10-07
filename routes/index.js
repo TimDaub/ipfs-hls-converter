@@ -12,7 +12,9 @@ let mkdirp = require('mkdirp');
 mkdirp = util.promisify(mkdirp);
 
 let errors = {};
-const queue = new Bull('video processing', 'redis://redis:6379');
+const queue = new Bull('video processing', {
+  redis: {port: 6379, host: 'redis', password: process.env.REDIS_PSWD},
+});
 
 queue.process(async (job, done) => {
   var db = new PouchDB('mydb');
